@@ -1,8 +1,8 @@
-# Taiwan Cruise — 車輛操控開發 Prompt 包 v1.3
+# Taiwan Cruise — 車輛操控開發 Prompt 包 v1.4
 
 - **用途**：交給 Codex 分階段開發 three.js 賽車遊戲的「車輛操控」原型（不含場景）
 - **手感目標**：Forza Horizon 預設輔助（ABS / TCS / STM 開、自動排檔）
-- **內容**：AGENTS.md、Phase 1–7 任務 prompt、手感調校對照表、輪胎與輔助系統的 TypeScript 參考實作（已通過型別檢查與 20 項單元測試）
+- **內容**：AGENTS.md、Phase 1–7 任務 prompt、手感調校對照表、輪胎與輔助系統的 TypeScript 參考實作（已通過型別檢查與 21 項單元測試）
 
 > **v1.1 修訂（參考實作經模擬驗證後）**
 > 1. Phase 3 側向力公式：`MF_lat` 的參數應為 `s × tan(peakSlipAngle)`，v1.0 多套了一層 `atan`。
@@ -31,6 +31,12 @@
 > 2. **車輪子步進拆成單步 API（substepWheel）**。原本 stepWheel 會把一個輪子的子步進一次跑完，差速器沒辦法在子步進之間耦合左右輪。驅動輪改用 stepDrivenAxle。
 > 3. **STM 的 limitRatio 0.85 → 1.0**。0.85 時，極限定圓的 yaw 只要比穩態多 10%（進彎時很常見）就會觸發煞車，讓車在極限邊緣被拉住。
 > 4. **VehicleState 補齊**駐車錨點、換檔計時器、倒檔狀態、離合器、輸入平滑狀態。少了這些，replay 會對不上。
+
+> **v1.4 修訂（第三次審查）**
+> 1. **懸吊阻尼速度改用車身掛載點速度投影**。原本用 (x − x_prev) / dt，車輪從離地到著地的那一步，壓縮量可能從 0 跳到 0.15 m，換算成 18 m/s，阻尼力瞬間超過 3 萬 N，車會被彈起來。
+> 2. **自動排檔與起步離合器補上精確規則**：換檔判斷一律用「車輪換算轉速」，不用引擎轉速；起步時離合器把引擎維持在 launchRpm。原本起步半離合時引擎可能空轉衝過 6500 rpm，車還沒動就升到 2 檔。
+> 3. **新增整車縱向估算測試**，確認預設 preset 和驗收目標一致：0→100 = 6.17 s、極速 253 km/h、100→0 = 36.9 m，三項都在範圍內。
+> 4. 小修：Phase 3 暫時驅動的扭力改為「後軸總扭力 + open 差速器」；TCS 在倒車時要把滑動率取反；對照表的「靜止微晃」補上低速橫向阻尼；已知限制補上 floating origin 時要平移駐車錨點。
 
 ## 使用方式
 
@@ -185,7 +191,8 @@ tests/
 1. 由掛載點（車身 local → world）沿車身 -Y 方向 raycast，長度 = restLength + wheelRadius。
    沒有打到地面 → 視為離地：懸吊伸長到 restLength，Fz = 0。
 2. 壓縮量 x = restLength − (hitDistance − wheelRadius)，clamp 到 [0, travel]。
-   壓縮速度 v_c = (x − x_prev) / dt。
+   壓縮速度 v_c = −dot(掛載點的車身速度, 車身 up)（車身往下壓為正；地面靜止）。
+   不可用 (x − x_prev) / dt：車輪從離地到著地的那一步，x 可能從 0 跳到 0.15 m，換算成 18 m/s，阻尼力瞬間超過 3 萬 N，車會被彈起來。
 3. 懸吊力：F = k·x + c·v_c（v_c > 0 使用 bump 阻尼，< 0 使用 rebound 阻尼）。
    x > bumpStopStart 時，額外加上 bump stop 力。F 最小為 0（不能把車往下拉）。
 4. 防傾桿：F_arb = k_arb × (x_left − x_right)；壓縮較多的一側加上 F_arb，另一側減去 F_arb（結果仍 clamp ≥ 0）。
@@ -198,6 +205,7 @@ Debug：用 Tweakpane 即時調整 k、c、arb；畫面上以 4 條長條顯示�
 - 靜止平衡：車放在平地 3 秒後，4 輪 Fz 總和 = m·g ±1%，前後比例 ≈ 52/48 ±2%。
 - 從 0.3 m 高度落下：不得穿地，1.5 秒內停止震盪（車身垂直速度 < 0.02 m/s）。
 - 120 Hz 與 240 Hz 的穩態壓縮量差異 < 2%。
+- 從 0.5 m 高度平落：著地那一步單輪懸吊力 < 4 × 靜態負載，不得彈離地面。
 ````
 
 ## Phase 3：輪胎模型（手感核心，要精確實作）
@@ -254,7 +262,7 @@ v_contact = 接觸點的世界速度；v_x = dot(v_contact, wheelForward)；v_y 
      F = −c·v_y × (1 − smoothstep(1, 3, |v_x|))，c = 2·0.7·m_corner·(2π·6Hz)，限制在 μ_eff·Fz，與輪胎 F_y 相加
      原因：|v_x| ≈ 0 時，鬆弛模型等效成一根阻尼很小的 6 Hz 側向彈簧，停車後會左右微晃
 
-7. 這個階段先暫時用簡單驅動測試：油門直接給後輪 T = throttle × 1500 N·m，
+7. 這個階段先暫時用簡單驅動測試：後軸總扭力 T = throttle × 1500 N·m，經 open 差速器（stepDrivenAxle）分給兩個後輪，
    煞車用 preset 的煞車扭力，轉向直接把前輪轉 steer × 30°。
 
 Debug：
@@ -283,13 +291,17 @@ Debug：
    - 超過 limiter：切斷燃油（throttle 視為 0），並以 20 Hz 脈衝恢復，產生撞限轉的感覺
    - rpm 最低為 idle（怠速控制器：rpm < idle 時補扭力）
 2. 離合器與自動起步
-   - 自動離合器：車輪換算 rpm < 1500 時進入半離合狀態，離合器傳遞扭力 = clutchCapacity × engagement，
-     engagement 隨 rpm 差平滑變化；完全結合後，引擎 rpm 由車輪換算 rpm 決定（剛性連結）
+   - 名詞：wheelRpm = 驅動輪平均 ω × 目前檔比 × 終傳 換算的 rpm（也就是變速箱輸入端轉速）
+   - 自動離合器（起步）：wheelRpm < launchRpm 時為半離合
+     - 引擎轉速由離合器控制在 launchRpm = lerp(1200, 3000, throttle)，不得空轉衝高
+     - 傳到變速箱的扭力 = 引擎在 launchRpm 的扭力 × throttle（離合器容量足夠時）
+     - wheelRpm 追上 launchRpm → 完全結合，引擎 rpm = max(wheelRpm, idle)，剛性連結（在 launchRpm 結合，轉速才不會突然掉而頓挫）
    - 引擎與傳動系的慣量要計入驅動輪的等效慣量：I_eff = I_w + I_engine × (gear × final)² / 驅動輪數
      （I_eff 就是 Wheel.ts 的 inertiaEff）
 3. Gearbox.ts（自動模式為預設，也支援手動 shiftUp/shiftDown）
-   - upshiftRpm(throttle) = lerp(3500, 6500, throttle)；rpm > upshiftRpm → 升檔
-   - 降檔：rpm < lerp(1800, 3500, throttle)；或 kick-down：throttle > 0.9 且降檔後 rpm < upshiftRpm(throttle) − 500
+   - 所有換檔判斷一律用 wheelRpm，不用引擎轉速（起步半離合時引擎轉速和車速無關，用它會在起步時誤升檔）
+   - upshiftRpm(throttle) = lerp(3500, 6500, throttle)；wheelRpm > upshiftRpm → 升檔
+   - 降檔：wheelRpm < lerp(1800, 3500, throttle)（1 檔不再降）；或 kick-down：throttle > 0.9 且降檔後的 wheelRpm < upshiftRpm(throttle) − 500
      （−500 的遲滯是必要的，否則 kick-down 門檻等於升檔點，會在兩檔之間來回跳）
    - 任何兩次換檔之間至少間隔 0.5 s（升檔、降檔都算）
    - 換檔期間 0.15 s 切斷扭力
@@ -319,7 +331,8 @@ HUD：速度 km/h、rpm 指針、檔位、油門/煞車條、手煞車指示。
 
 單元測試與驗收：
 - 差速器：左右抓地不同時 LSD 轉速差明顯小於 open，且轉速差不會來回翻轉（reference/tests 已有對應版本）
-- 0→100 km/h 在 6.0–7.5 s（輔助全開、自動排檔）
+- 0→100 km/h 在 6.0–7.5 s（輔助全開、自動排檔）；reference/tests/longitudinal.test.ts 的簡化估算為 6.17 s，整車結果若差超過 1 s，先檢查離合器與換檔邏輯
+- 起步全油門：車速 < 20 km/h 前不得升檔
 - 極速 230–260 km/h
 - 換檔時 rpm 連續，車身不會被猛拉
 - 原地全油門時起步平順（Phase 5 開 TCS 之後再驗一次）
@@ -358,6 +371,7 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 3. tcs.ts
    - 驅動輪最大 κ > peakSlipRatio × 1.15 → 啟動；以目標 κ = peakSlipRatio 的 PI 控制器（kp 0.25、ki 5）降低引擎扭力倍率
    - 降扭立即生效，恢復速率上限 3 /s；手煞車拉著時停用（讓玩家可以甩尾）
+   - 倒車時驅動方向相反，傳入前要把 κ 取反
    - 注意：kp 太大（例如 2）會在全砍與恢復之間循環，加速反而比沒開 TCS 還差
 4. abs.ts
    - 輸入的 brakeCmd 是該輪的總煞車需求（玩家煞車 + STM 附加煞車）
@@ -451,7 +465,7 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 | 煞車點頭太多 | 前彈簧和前 bump 阻尼調高、CoM 高度調低 |
 | 起步燒胎 | TCS 門檻調低、1 檔齒比調低 |
 | TCS / ABS 作用時一頓一頓 | kp 調低、ki 調低（先降 kp） |
-| 靜止時車子還在微抖或慢慢滑 | V_EPS、V_RELAX_MIN 調大，Hold 頻率調高 |
+| 靜止時車子還在微抖或慢慢滑 | 低速橫向阻尼的阻尼比調高、V_EPS 與 V_RELAX_MIN 調大、Hold 頻率調高 |
 | 高速太飄 | ClA 調高、maxAngle(v) 隨速度下降得更快 |
 
 # 四、跟 Codex 合作的建議
@@ -469,7 +483,7 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 這份程式碼是 Phase 3、Phase 4 差速器與 Phase 5 的「標準答案」：
 
 - **純邏輯**：不依賴 three.js 或 Rapier，可以直接在 Node 上測試，之後也能拿到多人伺服器上跑。
-- 已通過 `tsc --strict`（含 `noUncheckedIndexedAccess`）與 **20 項 Vitest 單元測試**。
+- 已通過 `tsc --strict`（含 `noUncheckedIndexedAccess`）與 **21 項 Vitest 單元測試**。
 - 執行方式：`npm install`、`npm run typecheck`、`npm test`。
 - 還沒有接上完整車輛（懸吊、動力系統、Rapier），那是 Codex 在 Phase 2 和 Phase 4 的工作。
 
@@ -504,11 +518,22 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 | STM：極限定圓 1.0 g、yaw 多 10% | limitRatio 1.0 不觸發；0.85 會誤觸 |
 | 隨機輸入 10,000 步 | 無 NaN |
 
+## 整車縱向估算
+
+直線、準靜態前後重量轉移、預設 preset 的引擎扭力曲線、齒比、TCS、ABS、空力與滾阻：
+
+| 項目 | 結果 | 驗收目標 |
+|---|---|---|
+| 0→100 km/h | **6.17 s** | 6.0–7.5 s |
+| 極速 | **253 km/h** | 230–260 km/h |
+| 100→0 km/h（ABS） | **36.9 m** | 36–42 m |
+
 {{CODE}}
 
 # 六、已知限制
 
-1. 上面的驗證都是「四分之一車」或純函式測試，**沒有包含重量轉移、懸吊與 Rapier 剛體**。整車的定圓、繞錐、甩尾手感，要等 Phase 7 的 handling-report 才能驗證。
+1. 上面的驗證是「四分之一車」、純函式測試，以及只有直線的整車縱向估算，**沒有包含側向動態、懸吊與 Rapier 剛體**。定圓、繞錐、甩尾手感，要等 Phase 7 的 handling-report 才能驗證。
 2. 預設參數是依照一般 1350 kg 後驅轎車估算的起點，0→100、極速、煞車距離都是推算值，實車開起來仍需要調校。
 3. 決定性只保證同一台機器、同一個瀏覽器。多人連線請用狀態同步，不要依賴各端重算出相同結果。
 4. 方向盤力回饋在瀏覽器支援度有限，規格中列為不做。
+5. 之後加入真實地景、使用 floating origin（世界原點平移）時，駐車錨點是世界座標，必須跟著一起平移。
