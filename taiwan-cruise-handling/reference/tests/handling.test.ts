@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEG, GRAVITY } from '../src/vehicle/math';
 import { combinedForce, createTireState, magicFormulaNormalized, type TireParams } from '../src/vehicle/Tire';
 import { stepWheel, type WheelState } from '../src/vehicle/Wheel';
+import { stepDrivenAxle, type DiffParams } from '../src/vehicle/Drivetrain';
 import { computeHoldForce, createHoldState, lowSpeedLateralDamping, type HoldParams } from '../src/vehicle/Hold';
 import { evaluateTire } from '../src/vehicle/Tire';
 import { createAbsState, updateAbs, type AbsParams } from '../src/vehicle/assists/abs';
@@ -220,6 +221,56 @@ describe('車輪積分（四分之一車）', () => {
   });
 });
 
+describe('差速器（左右抓地不同：左 0.3 / 右 1.0）', () => {
+  function splitMu(diff: DiffParams, seconds = 3) {
+    const states: [WheelState, WheelState] = [
+      { omega: 0, tire: createTireState() },
+      { omega: 0, tire: createTireState() },
+    ];
+    let v = 0;
+    let flips = 0;
+    let prevD = 0;
+    let maxLateDelta = 0;
+    for (let i = 0; i < seconds / DT; i++) {
+      const common = { vy: 0, fz: FZ, brakeTorque: 0, resistTorque: 10, inertiaEff: 8 };
+      const [l, r] = stepDrivenAxle(
+        tire,
+        wheel,
+        states,
+        [
+          { ...common, vx: v, surfaceGrip: 0.3 },
+          { ...common, vx: v, surfaceGrip: 1.0 },
+        ],
+        diff,
+        1600,
+        DT,
+        4,
+      );
+      v += ((l.fx + r.fx) / (2 * MASS)) * DT;
+      const d = states[0].omega - states[1].omega;
+      if (i > 1 / DT && Math.abs(d) > 1e-6 && Math.abs(prevD) > 1e-6 && d * prevD < 0) flips++;
+      if (i > 2 / DT) maxLateDelta = Math.max(maxLateDelta, Math.abs(d));
+      prevD = d;
+      expect(Number.isFinite(v) && Number.isFinite(d)).toBe(true);
+    }
+    return { v, flips, maxLateDelta };
+  }
+  it('LSD 把打滑輪的轉速差壓下來且不抖；locked 兩輪幾乎同速', () => {
+    // 這裡沒有引擎模型（固定輸入扭力），所以只比較左右轉速差，不比較加速
+    const open = splitMu({ type: 'open', preload: 0, lockCoef: 0 });
+    const lsd = splitMu({ type: 'lsd', preload: 50, lockCoef: 0.25 });
+    const locked = splitMu({ type: 'locked', preload: 0, lockCoef: 0 });
+    console.log(
+      `第 2–3 秒最大左右轉速差 open ${open.maxLateDelta.toFixed(1)} / lsd ${lsd.maxLateDelta.toFixed(1)} / ` +
+        `locked ${locked.maxLateDelta.toExponential(2)} rad/s；LSD 轉速差翻轉次數 ${lsd.flips}`,
+    );
+    expect(lsd.maxLateDelta).toBeLessThan(open.maxLateDelta);
+    expect(locked.maxLateDelta).toBeLessThan(0.5);
+    expect(lsd.flips).toBe(0);
+    expect(locked.flips).toBeLessThan(5);
+  });
+});
+
 describe('轉向輔助', () => {
   const p: SteeringAssistParams = {
     enabled: true,
@@ -277,7 +328,7 @@ describe('STM', () => {
     wheelbase: 2.65,
     kUs: 0.0025,
     muEstimate: 1.05,
-    limitRatio: 0.85,
+    limitRatio: 1.0,
     deadband: 0.08,
     kp: 2500,
     ki: 4000,
@@ -296,6 +347,19 @@ describe('STM', () => {
     expect(out.brakeTorque[0]).toBeGreaterThan(100);
     expect(out.brakeTorque[1]).toBeCloseTo(0, 3);
     expect(out.throttleScale).toBeLessThan(0.9);
+  });
+  it('極限定圓（1.0 g）時 yaw 多出 10% 的正常波動不會觸發', () => {
+    const v = 22.15;
+    const r = (GRAVITY * 1.0 * 1.1) / v;
+    for (const [ratio, expectMode] of [
+      [1.0, 'none'],
+      [0.85, 'oversteer'],
+    ] as const) {
+      const st = createStmState();
+      const out = updateStm({ ...p, limitRatio: ratio }, st, { forwardSpeed: v, driverSteerAngle: 12 * DEG, yawRateRight: r, dt: DT });
+      console.log(`STM limitRatio ${ratio}：${out.mode}`);
+      expect(out.mode).toBe(expectMode);
+    }
   });
   it('右轉轉向不足 → 輕煞右後', () => {
     const st = createStmState();

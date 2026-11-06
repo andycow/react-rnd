@@ -15,7 +15,7 @@ export interface StmParams {
   wheelbase: number;
   kUs: number; // 不足轉向梯度，例 0.0025
   muEstimate: number; // 例 1.05
-  limitRatio: number; // 例 0.85
+  limitRatio: number; // 例 1.0；0.85 時極限過彎的正常 yaw 波動（約 10%）就會觸發
   deadband: number; // rad/s，例 0.08
   kp: number; // N·m / (rad/s)，例 2500
   ki: number; // 例 4000

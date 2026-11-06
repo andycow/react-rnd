@@ -1,8 +1,8 @@
-# Taiwan Cruise — 車輛操控開發 Prompt 包 v1.2
+# Taiwan Cruise — 車輛操控開發 Prompt 包 v1.3
 
 - **用途**：交給 Codex 分階段開發 three.js 賽車遊戲的「車輛操控」原型（不含場景）
 - **手感目標**：Forza Horizon 預設輔助（ABS / TCS / STM 開、自動排檔）
-- **內容**：AGENTS.md、Phase 1–7 任務 prompt、手感調校對照表、輪胎與輔助系統的 TypeScript 參考實作（已通過型別檢查與 18 項單元測試）
+- **內容**：AGENTS.md、Phase 1–7 任務 prompt、手感調校對照表、輪胎與輔助系統的 TypeScript 參考實作（已通過型別檢查與 20 項單元測試）
 
 > **v1.1 修訂（參考實作經模擬驗證後）**
 > 1. Phase 3 側向力公式：`MF_lat` 的參數應為 `s × tan(peakSlipAngle)`，v1.0 多套了一層 `atan`。
@@ -26,10 +26,16 @@
 > 12. **sport 預設的「TCS 低」補上具體數值**；ABS 的 brakeCmd 明確定義為「玩家 + STM」的總煞車需求。
 > 13. 參考程式碼的 package.json 補上 typecheck / test 指令。
 
+> **v1.3 修訂（第二次審查）**
+> 1. **差速器規格重寫**。原本 LSD 寫成「固定扭力 × sign(轉速差)」，兩輪轉速接近時正負號每步翻轉，會高頻抖動；上限寫成「...」沒有定義；locked 用「顯式強阻尼耦合」，阻尼一大就發散。現在改成「最多轉移到兩輪同速為止」，並新增 Drivetrain.ts 參考實作與測試。
+> 2. **車輪子步進拆成單步 API（substepWheel）**。原本 stepWheel 會把一個輪子的子步進一次跑完，差速器沒辦法在子步進之間耦合左右輪。驅動輪改用 stepDrivenAxle。
+> 3. **STM 的 limitRatio 0.85 → 1.0**。0.85 時，極限定圓的 yaw 只要比穩態多 10%（進彎時很常見）就會觸發煞車，讓車在極限邊緣被拉住。
+> 4. **VehicleState 補齊**駐車錨點、換檔計時器、倒檔狀態、離合器、輸入平滑狀態。少了這些，replay 會對不上。
+
 ## 使用方式
 
 1. 建立新的 repo，把下方的 **AGENTS.md** 放到根目錄。
-2. 把附帶的 `handling-reference.zip`（第五章的程式碼）解壓縮，得到 `reference/` 資料夾，放進 repo 根目錄，Codex 實作 Phase 3 和 Phase 5 時要對照。
+2. 把附帶的 `handling-reference.zip`（第五章的程式碼）解壓縮，得到 `reference/` 資料夾，放進 repo 根目錄，Codex 實作 Phase 3、Phase 4（差速器）和 Phase 5 時要對照。
 3. **一次只貼一個 Phase** 給 Codex，自己試開確認後，再貼下一個。
 4. Phase 1–4 先求物理正確（數值合理、不抖、測試通過），Phase 5 之後才開始調「感覺」。
 
@@ -56,7 +62,7 @@
 - 不使用 React / R3F
 
 ## 參考實作
-reference/ 內有輪胎、車輪積分、駐車力、ABS/TCS/STM/轉向輔助的參考程式碼與測試。
+reference/ 內有輪胎、車輪積分、駐車力、差速器、ABS/TCS/STM/轉向輔助的參考程式碼與測試。
 實作 src/vehicle/ 時，公式、符號約定、數值穩定性處理必須與參考實作一致；可以重構，但不得改變行為。
 
 ## 單位與座標
@@ -71,7 +77,10 @@ reference/ 內有輪胎、車輪積分、駐車力、ABS/TCS/STM/轉向輔助的
    - 渲染端用前後兩個物理狀態做插值（位置 lerp、旋轉 slerp）。
 2. 車輛模擬是純邏輯模組（src/vehicle/**），不得 import three.js；只能依賴一個小型的 Vec3/Quat 數學工具，以及一個 PhysicsAdapter 介面（包裝 Rapier）。這樣之後才能拿到伺服器上跑，也方便寫單元測試。
 3. 每一步的輸入是一個可序列化的 VehicleInput：{ steer: -1..1, throttle: 0..1, brake: 0..1, handbrake: 0..1, shiftUp: bool, shiftDown: bool }。
-4. 車輛狀態必須能序列化成 VehicleState（車身位置/旋轉/線速度/角速度、每輪 ω、輪胎鬆弛狀態、懸吊壓縮量、引擎 rpm、檔位、輔助系統內部狀態），供 replay 與未來的多人同步使用。
+4. 車輛狀態必須能序列化成 VehicleState，供 replay 與未來的多人同步使用。必須包含所有會影響下一步的內部狀態：
+   車身位置/旋轉/線速度/角速度、每輪 ω、輪胎鬆弛狀態（κ、α）、懸吊壓縮量（含上一步的值）、駐車錨點、
+   引擎 rpm、檔位、換檔計時器、倒檔狀態（含「停住後煞車是否放開過」）、離合器結合度、輸入平滑狀態、各輔助系統的積分器與濾波器。
+   Replay 測試要能抓出漏掉的狀態。
 5. 所有車輛參數集中於 /src/vehicle/presets/*.json，程式碼中不得出現魔術數字。Tweakpane 可即時修改，並支援匯出/匯入 JSON。
 6. 決定性（determinism）：同一個初始狀態 + 同一串輸入，在同一台機器、同一個瀏覽器上必須得到相同結果。不得在模擬中使用 Math.random 或 Date.now。
    （跨瀏覽器的 Math.sin/atan 等結果可能有末位差異，所以多人連線不能依賴決定性，必須靠狀態同步。）
@@ -119,7 +128,7 @@ tests/
 - 滾動阻力係數 0.012
 - 轉向：低速最大輪角 33°、Ackermann 0.6
   - 輸入平滑（只在 Steering.ts 做一次，依裝置）：鍵盤轉入 0→1 需 0.18 s（低速）~ 0.35 s（高速）、回正 0.12 s；手把轉入 0.08 s、回正 0.06 s；方向盤不平滑
-- 輔助：ABS kp 1.5 / ki 20；TCS kp 0.25 / ki 5；STM kp 2500 / ki 4000；轉向輔助 strength 0.7、反打 gain 0.6、門檻 9°（= peakSlipAngle × 1.1）
+- 輔助：ABS kp 1.5 / ki 20；TCS kp 0.25 / ki 5；STM kp 2500 / ki 4000 / limitRatio 1.0；轉向輔助 strength 0.7、反打 gain 0.6、門檻 9°（= peakSlipAngle × 1.1）
 
 ## 手感驗收目標（使用 "forza_normal" 輔助預設）
 - 0→100 km/h：6.0–7.5 s；極速 230–260 km/h
@@ -226,6 +235,8 @@ v_contact = 接觸點的世界速度；v_x = dot(v_contact, wheelForward)；v_y 
    I·dω/dt = T_drive − r·F_x(ω) − T_resist
    - 每個物理步長跑 WHEEL_SUBSTEPS = 4 次子步進；子步進期間車身速度固定，每個子步進都重算輪胎力，
      最後把平均的 F_x、F_y 當作衝量施加給車身。
+   - 單一子步進寫成 substepWheel；非驅動輪可用 stepWheel 一次跑完，驅動輪必須用 Drivetrain.ts 的 stepDrivenAxle
+     （每個子步進先分配差速器扭力，再推進兩輪）。
    - 低速時 ∂F_x/∂ω 極大，顯式積分會發散。所以每個子步進：
      K = max(0, ∂F_x/∂ω)（數值微分，eps = 1e-3 × max(1, |ω|)）
      ω_free = ω + h·(T_drive − r·F_x0) / (I + h·r·K)
@@ -287,11 +298,15 @@ Debug：
      - 倒檔中 brake 與 throttle 對調
      - 離開：倒檔中車速 < 1 km/h 且玩家按下原本的油門鍵（throttle > 0.5）→ 回到 1 檔
    - 轉彎中（側向 g > 0.6）延後升檔，避免彎中失去動力
-4. Differential.ts
+4. Drivetrain.ts（差速器，以 reference/src/vehicle/Drivetrain.ts 為準）
+   - 在每個車輪子步進計算一次，不是每個物理步長一次
    - open：左右扭力平分
-   - lsd：轉移扭力 = clamp(preload + lockCoef × |T_in|, 0, ...) × sign(ω_l − ω_r)，由快的一側移到慢的一側
-   - locked：以強阻尼耦合左右 ω
-   - AWD：中央差速器依前後分配比例分配扭力，再交給前後 LSD
+   - lsd / locked：先算出讓兩輪「在這個子步進內剛好同速」所需的轉移扭力
+     T_eq = |ω_l − ω_r| × I_eq / h，I_eq = I_l·I_r / (I_l + I_r)
+     實際轉移 = min(容量, T_eq)，從快的一側移到慢的一側
+     容量：lsd = preload + lockCoef × |T_in|；locked = ∞
+   - 不可寫成「固定扭力 × sign(ω_l − ω_r)」（轉速接近時會每步翻轉而抖動），也不可用顯式強阻尼耦合（會發散）
+   - AWD：中央差速器依前後分配比例分配扭力（中央也可用同樣的 min(容量, T_eq) 做法），再交給前後軸
 5. Brakes.ts：brake 輸入 → 每輪扭力（依 preset 的前後最大值，前 2200 / 後 900）；手煞車只作用在後輪
 6. Aero.ts：F_drag = 0.5ρ·CdA·v²（方向與速度相反，施加在 CoM）；
    下壓力 0.5ρ·ClA·v²，依前後比例施加在前後軸中點；滾動阻力 = Crr × Fz × r（作為 Wheel 的 resistTorque）
@@ -303,6 +318,7 @@ Debug：
 HUD：速度 km/h、rpm 指針、檔位、油門/煞車條、手煞車指示。
 
 單元測試與驗收：
+- 差速器：左右抓地不同時 LSD 轉速差明顯小於 open，且轉速差不會來回翻轉（reference/tests 已有對應版本）
 - 0→100 km/h 在 6.0–7.5 s（輔助全開、自動排檔）
 - 極速 230–260 km/h
 - 換檔時 rpm 連續，車身不會被猛拉
@@ -333,7 +349,7 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
      門檻不可低於後輪峰值滑動角，否則正常極限過彎時就會介入，感覺像推頭。
      玩家已經在反打（同號）時取較大的反打量，不跟玩家打架；異號時相加。
 2. stm.ts（以 yaw rate 控制）
-   - r_target = v·δ_driver / (L + K_us·v²)，K_us = 0.0025，限制在 ±0.85·μ·g / v
+   - r_target = v·δ_driver / (L + K_us·v²)，K_us = 0.0025，限制在 ±1.0·μ·g / v（limitRatio 1.0；0.85 會在極限過彎時誤觸）
    - δ_driver 是 Steering.ts 的機構輸出（轉向輔助「之前」）。不可用含自動反打的實際輪角，
      否則甩尾回正時 r_target 會指向另一側，STM 誤判成轉向不足而煞錯邊，把車甩到另一側。
    - 過度轉向（r 與 r_target 異號，或 |r| − |r_target| > 0.08 rad/s）：PI 控制煞「前外側輪」（上限 800 N·m），降低油門
@@ -450,10 +466,10 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 
 # 五、參考實作（TypeScript）
 
-這份程式碼是 Phase 3 與 Phase 5 的「標準答案」：
+這份程式碼是 Phase 3、Phase 4 差速器與 Phase 5 的「標準答案」：
 
 - **純邏輯**：不依賴 three.js 或 Rapier，可以直接在 Node 上測試，之後也能拿到多人伺服器上跑。
-- 已通過 `tsc --strict`（含 `noUncheckedIndexedAccess`）與 **18 項 Vitest 單元測試**。
+- 已通過 `tsc --strict`（含 `noUncheckedIndexedAccess`）與 **20 項 Vitest 單元測試**。
 - 執行方式：`npm install`、`npm run typecheck`、`npm test`。
 - 還沒有接上完整車輛（懸吊、動力系統、Rapier），那是 Codex 在 Phase 2 和 Phase 4 的工作。
 
@@ -484,6 +500,8 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 | 鎖死煞車 ω 跨零次數 | 0 |
 | 停車側向晃動（第 2–3 秒最大 \|v_y\|），無低速橫向阻尼 | 0.011 m/s（超標） |
 | 停車側向晃動，有低速橫向阻尼 | **≈ 0** |
+| 左右抓地不同（0.3 / 1.0）、1600 N·m，第 2–3 秒最大左右轉速差 | open 150 rad/s、**LSD 0.2 rad/s（無抖動）**、locked 0.18 rad/s |
+| STM：極限定圓 1.0 g、yaw 多 10% | limitRatio 1.0 不觸發；0.85 會誤觸 |
 | 隨機輸入 10,000 步 | 無 NaN |
 
 {{CODE}}
