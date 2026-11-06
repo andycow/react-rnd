@@ -1,0 +1,29 @@
+A 60km/h hold=0.2 steer=0.35: peakBeta 13.5 settle 0.85s heading 50.9 vEnd 48
+A 60km/h hold=0.2 steer=0.6: peakBeta 16.9 settle 1.00s heading 59.6 vEnd 45
+A 60km/h hold=0.5 steer=0.35: peakBeta 79.5 settle 2.39s heading 152.4 vEnd 5
+A 60km/h hold=0.5 steer=0.6: peakBeta 82.1 settle 2.31s heading 160.1 vEnd 4
+A 60km/h hold=1 steer=0.35: peakBeta 84.0 settle 1.25s heading 175.2 vEnd 0
+A 60km/h hold=1 steer=0.6: peakBeta 84.0 settle 0.85s heading 189.9 vEnd 1
+A 80km/h hold=0.2 steer=0.35: peakBeta 32.4 settle 2.36s heading 96.8 vEnd 36
+A 80km/h hold=0.2 steer=0.6: peakBeta 40.3 settle 2.72s heading 121.0 vEnd 23
+A 80km/h hold=0.5 steer=0.35: peakBeta 85.8 settle 2.07s heading 203.7 vEnd 10
+A 80km/h hold=0.5 steer=0.6: peakBeta 85.9 settle 1.91s heading 203.6 vEnd 12
+A 80km/h hold=1 steer=0.35: peakBeta 86.3 settle 0.84s heading 201.7 vEnd 22
+A 80km/h hold=1 steer=0.6: peakBeta 86.2 settle 1.03s heading 218.2 vEnd 22
+A 100km/h hold=0.2 steer=0.35: peakBeta 85.6 settle 2.99s heading 155.4 vEnd 1
+A 100km/h hold=0.2 steer=0.6: peakBeta 85.6 settle 2.99s heading 154.8 vEnd 1
+A 100km/h hold=0.5 steer=0.35: peakBeta 87.1 settle 1.53s heading 198.7 vEnd 39
+A 100km/h hold=0.5 steer=0.6: peakBeta 87.1 settle 1.51s heading 199.3 vEnd 38
+A 100km/h hold=1 steer=0.35: peakBeta 87.3 settle 2.99s heading 332.0 vEnd 4
+A 100km/h hold=1 steer=0.6: peakBeta 87.2 settle 2.99s heading 331.4 vEnd 2
+B hairpin 40km/h hold=0: heading@1.5s 67.6 heading@3s 125.5 peakBeta 3.8 vEnd 33
+B hairpin 40km/h hold=0.4: heading@1.5s 83.8 heading@3s 129.6 peakBeta 11.5 vEnd 27
+B hairpin 40km/h hold=0.8: heading@1.5s 130.1 heading@3s 147.7 peakBeta 46.3 vEnd 12
+B hairpin 40km/h hold=1.2: heading@1.5s 139.5 heading@3s 145.3 peakBeta 70.3 vEnd 8
+C lanechange 100 a=0.3: peakBeta 2.3 peakRear 3.2 settle 0.20s(2deg) residualYaw 0.000 heading -0.6
+C lanechange 100 a=0.5: peakBeta 3.1 peakRear 4.1 settle 0.38s(2deg) residualYaw 0.000 heading -2.3
+C lanechange 100 a=0.8: peakBeta 3.5 peakRear 4.4 settle 0.41s(2deg) residualYaw 0.000 heading -0.9
+D trailbrake 80 steer=0.3: peakBeta 5.5 peakRear 7.7 heading 72.9 vEnd 0
+D trailbrake 80 steer=0.6: peakBeta 10.7 peakRear 9.2 heading 83.9 vEnd 0
+E liftoff 80 steer=0.4: peakBeta after lift 3.1 peakRear 4.4 beta before 3.6
+E liftoff 80 steer=0.7: peakBeta after lift 3.5 peakRear 4.8 beta before 4.4

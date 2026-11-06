@@ -1,0 +1,43 @@
+A 60km/h hold=0.2 steer=0.35: peakBeta 11.7 settle 0.42s heading 30.7 vEnd 52
+A 60km/h hold=0.2 steer=0.6: peakBeta 14.9 settle 0.49s heading 35.2 vEnd 50
+A 60km/h hold=0.5 steer=0.35: peakBeta 21.7 settle 0.52s heading 39.8 vEnd 46
+A 60km/h hold=0.5 steer=0.6: peakBeta 26.3 settle 0.63s heading 46.4 vEnd 43
+A 60km/h hold=1 steer=0.35: peakBeta 25.2 settle 0.63s heading 59.2 vEnd 37
+A 60km/h hold=1 steer=0.6: peakBeta 29.6 settle 0.67s heading 67.3 vEnd 34
+A 80km/h hold=0.2 steer=0.35: peakBeta 13.4 settle 0.57s heading 27.7 vEnd 68
+A 80km/h hold=0.2 steer=0.6: peakBeta 15.1 settle 0.61s heading 29.4 vEnd 66
+A 80km/h hold=0.5 steer=0.35: peakBeta 21.0 settle 0.60s heading 34.0 vEnd 63
+A 80km/h hold=0.5 steer=0.6: peakBeta 25.7 settle 0.75s heading 38.8 vEnd 58
+A 80km/h hold=1 steer=0.35: peakBeta 25.3 settle 0.78s heading 52.3 vEnd 51
+A 80km/h hold=1 steer=0.6: peakBeta 29.8 settle 0.88s heading 56.9 vEnd 48
+A 100km/h hold=0.2 steer=0.35: peakBeta 15.7 settle 0.74s heading 24.8 vEnd 83
+A 100km/h hold=0.2 steer=0.6: peakBeta 16.5 settle 0.75s heading 25.7 vEnd 82
+A 100km/h hold=0.5 steer=0.35: peakBeta 22.7 settle 0.77s heading 30.3 vEnd 78
+A 100km/h hold=0.5 steer=0.6: peakBeta 27.4 settle 0.92s heading 34.0 vEnd 74
+A 100km/h hold=1 steer=0.35: peakBeta 23.9 settle 0.75s heading 42.1 vEnd 72
+A 100km/h hold=1 steer=0.6: peakBeta 29.4 settle 0.89s heading 46.2 vEnd 68
+B hairpin 40km/h hold=0: heading@1.5s 66.3 heading@3s 117.5 peakBeta 4.4 vEnd 37
+B hairpin 40km/h hold=0.4: heading@1.5s 95.7 heading@3s 134.3 peakBeta 9.1 vEnd 25
+B hairpin 40km/h hold=0.8: heading@1.5s 128.6 heading@3s 143.3 peakBeta 45.4 vEnd 12
+B hairpin 40km/h hold=1.2: heading@1.5s 135.4 heading@3s 151.7 peakBeta 46.2 vEnd 12
+B hairpin 60km/h hold=0: heading@1.5s 46.5 heading@3s 90.9 peakBeta 0.9 vEnd 57
+B hairpin 60km/h hold=0.4: heading@1.5s 77.9 heading@3s 106.1 peakBeta 35.6 vEnd 27
+B hairpin 60km/h hold=0.8: heading@1.5s 72.3 heading@3s 93.3 peakBeta 43.8 vEnd 27
+B hairpin 60km/h hold=1.2: heading@1.5s 72.4 heading@3s 93.1 peakBeta 43.9 vEnd 27
+B hairpin 80km/h hold=0: heading@1.5s 36.9 heading@3s 74.8 peakBeta 3.1 vEnd 74
+B hairpin 80km/h hold=0.4: heading@1.5s 68.3 heading@3s 89.8 peakBeta 36.6 vEnd 32
+B hairpin 80km/h hold=0.8: heading@1.5s 65.1 heading@3s 77.6 peakBeta 42.9 vEnd 38
+B hairpin 80km/h hold=1.2: heading@1.5s 65.8 heading@3s 77.8 peakBeta 43.1 vEnd 37
+F keep-steer 60km/h thr=0.3: peakBeta 40.9 heading@3s 97.8 settleAfterCenter 0.00s vEnd 34
+F keep-steer 60km/h thr=0.8: peakBeta 36.6 heading@3s 105.3 settleAfterCenter 0.00s vEnd 48
+F keep-steer 80km/h thr=0.3: peakBeta 40.7 heading@3s 78.8 settleAfterCenter 0.00s vEnd 43
+F keep-steer 80km/h thr=0.8: peakBeta 38.4 heading@3s 85.0 settleAfterCenter 0.00s vEnd 52
+F keep-steer 100km/h thr=0.3: peakBeta 42.7 heading@3s 72.6 settleAfterCenter 0.15s vEnd 53
+F keep-steer 100km/h thr=0.8: peakBeta 40.0 heading@3s 71.3 settleAfterCenter 0.13s vEnd 65
+C lanechange 100 a=0.3: peakBeta 2.3 peakRear 3.2 settle 0.19s(2deg) residualYaw 0.000 heading -0.6
+C lanechange 100 a=0.5: peakBeta 3.1 peakRear 4.2 settle 0.38s(2deg) residualYaw 0.000 heading -2.4
+C lanechange 100 a=0.8: peakBeta 3.5 peakRear 4.5 settle 0.41s(2deg) residualYaw 0.000 heading -1.0
+D trailbrake 80 steer=0.3: peakBeta 5.4 peakRear 6.8 heading 62.4 vEnd 0
+D trailbrake 80 steer=0.6: peakBeta 11.5 peakRear 8.7 heading 82.5 vEnd 0
+E liftoff 80 steer=0.4: peakBeta after lift 3.1 peakRear 4.4 beta before 3.6
+E liftoff 80 steer=0.7: peakBeta after lift 3.4 peakRear 4.7 beta before 4.3
