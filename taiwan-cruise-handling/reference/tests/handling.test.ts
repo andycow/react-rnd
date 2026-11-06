@@ -337,12 +337,13 @@ describe('STM', () => {
     throttleCutGain: 2,
     minThrottleScale: 0.2,
     filterTau: 0.05,
+    suspendWithHandbrake: true,
   };
   it('右轉過度轉向 → 煞左前、降油門', () => {
     const st = createStmState();
-    let out = updateStm(p, st, { forwardSpeed: 20, driverSteerAngle: 3 * DEG, yawRateRight: 0.9, dt: DT });
+    let out = updateStm(p, st, { forwardSpeed: 20, driverSteerAngle: 3 * DEG, yawRateRight: 0.9, handbrake: 0, dt: DT });
     for (let i = 0; i < 30; i++)
-      out = updateStm(p, st, { forwardSpeed: 20, driverSteerAngle: 3 * DEG, yawRateRight: 0.9, dt: DT });
+      out = updateStm(p, st, { forwardSpeed: 20, driverSteerAngle: 3 * DEG, yawRateRight: 0.9, handbrake: 0, dt: DT });
     expect(out.mode).toBe('oversteer');
     expect(out.brakeTorque[0]).toBeGreaterThan(100);
     expect(out.brakeTorque[1]).toBeCloseTo(0, 3);
@@ -356,16 +357,27 @@ describe('STM', () => {
       [0.85, 'oversteer'],
     ] as const) {
       const st = createStmState();
-      const out = updateStm({ ...p, limitRatio: ratio }, st, { forwardSpeed: v, driverSteerAngle: 12 * DEG, yawRateRight: r, dt: DT });
+      const out = updateStm({ ...p, limitRatio: ratio }, st, { forwardSpeed: v, driverSteerAngle: 12 * DEG, yawRateRight: r, handbrake: 0, dt: DT });
       console.log(`STM limitRatio ${ratio}：${out.mode}`);
       expect(out.mode).toBe(expectMode);
     }
   });
+  it('拉手煞車時暫停，放開後 0.2 秒內恢復介入', () => {
+    const st = createStmState();
+    const base = { forwardSpeed: 20, driverSteerAngle: 3 * DEG, yawRateRight: 0.9, dt: DT };
+    let out = updateStm(p, st, { ...base, handbrake: 1 });
+    for (let i = 0; i < 30; i++) out = updateStm(p, st, { ...base, handbrake: 1 });
+    expect(out.mode).toBe('none');
+    expect(Math.max(...out.brakeTorque)).toBeLessThan(1);
+    for (let i = 0; i < 24; i++) out = updateStm(p, st, { ...base, handbrake: 0 });
+    expect(out.mode).toBe('oversteer');
+    expect(out.brakeTorque[0]).toBeGreaterThan(100);
+  });
   it('右轉轉向不足 → 輕煞右後', () => {
     const st = createStmState();
-    let out = updateStm(p, st, { forwardSpeed: 15, driverSteerAngle: 8 * DEG, yawRateRight: 0.1, dt: DT });
+    let out = updateStm(p, st, { forwardSpeed: 15, driverSteerAngle: 8 * DEG, yawRateRight: 0.1, handbrake: 0, dt: DT });
     for (let i = 0; i < 30; i++)
-      out = updateStm(p, st, { forwardSpeed: 15, driverSteerAngle: 8 * DEG, yawRateRight: 0.1, dt: DT });
+      out = updateStm(p, st, { forwardSpeed: 15, driverSteerAngle: 8 * DEG, yawRateRight: 0.1, handbrake: 0, dt: DT });
     expect(out.mode).toBe('understeer');
     expect(out.brakeTorque[3]).toBeGreaterThan(50);
     expect(out.brakeTorque[3]).toBeLessThanOrEqual(400);

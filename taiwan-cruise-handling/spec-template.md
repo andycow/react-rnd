@@ -1,8 +1,8 @@
-# Taiwan Cruise — 車輛操控開發 Prompt 包 v1.4
+# Taiwan Cruise — 車輛操控開發 Prompt 包 v1.5
 
 - **用途**：交給 Codex 分階段開發 three.js 賽車遊戲的「車輛操控」原型（不含場景）
 - **手感目標**：Forza Horizon 預設輔助（ABS / TCS / STM 開、自動排檔）
-- **內容**：AGENTS.md、Phase 1–7 任務 prompt、手感調校對照表、輪胎與輔助系統的 TypeScript 參考實作（已通過型別檢查與 21 項單元測試）
+- **內容**：AGENTS.md、Phase 1–7 任務 prompt、手感調校對照表、輪胎與輔助系統的 TypeScript 參考實作（已通過型別檢查與 22 項單元測試）
 
 > **v1.1 修訂（參考實作經模擬驗證後）**
 > 1. Phase 3 側向力公式：`MF_lat` 的參數應為 `s × tan(peakSlipAngle)`，v1.0 多套了一層 `atan`。
@@ -33,10 +33,17 @@
 > 4. **VehicleState 補齊**駐車錨點、換檔計時器、倒檔狀態、離合器、輸入平滑狀態。少了這些，replay 會對不上。
 
 > **v1.4 修訂（第三次審查）**
-> 1. **懸吊阻尼速度改用車身掛載點速度投影**。原本用 (x − x_prev) / dt，車輪從離地到著地的那一步，壓縮量可能從 0 跳到 0.15 m，換算成 18 m/s，阻尼力瞬間超過 3 萬 N，車會被彈起來。
+> 1. **懸吊阻尼速度改用車身掛載點速度投影**。原本用 (x − x_prev) / dt，壓縮量不連續變化時（開上路緣或台階、按 R 重置、斜坡邊緣）會產生假的速度尖峰，例如一步內 0 → 0.1 m，在 120 Hz 換算成 12 m/s，阻尼力瞬間約 2.5 萬 N，車會被彈起來。
 > 2. **自動排檔與起步離合器補上精確規則**：換檔判斷一律用「車輪換算轉速」，不用引擎轉速；起步時離合器把引擎維持在 launchRpm。原本起步半離合時引擎可能空轉衝過 6500 rpm，車還沒動就升到 2 檔。
 > 3. **新增整車縱向估算測試**，確認預設 preset 和驗收目標一致：0→100 = 6.17 s、極速 253 km/h、100→0 = 36.9 m，三項都在範圍內。
 > 4. 小修：Phase 3 暫時驅動的扭力改為「後軸總扭力 + open 差速器」；TCS 在倒車時要把滑動率取反；對照表的「靜止微晃」補上低速橫向阻尼；已知限制補上 floating origin 時要平移駐車錨點。
+
+> **v1.5 修訂（第四次審查）**
+> 1. **手煞車扭力不經過 ABS**。v1.2 把 ABS 的輸入定義為「玩家煞車 + STM」，但沒有寫明手煞車要繞過 ABS。若手煞車也進 ABS，ABS 一偵測到後輪鎖死就會放開，手煞車甩尾做不出來。
+> 2. **STM 在拉手煞車時暫停，放開後平滑恢復**。原本 STM 會立刻把手煞車甩尾拉回，和「手煞車進彎可以甩尾」的驗收互相矛盾。
+> 3. **Ackermann 的處理順序寫清楚**：Steering.ts 只輸出一個中心輪角，轉向輔助修正後，最後才依 Ackermann 分成左右輪角。原本 Phase 4 說 Steering.ts 做 Ackermann，Phase 5 又說轉向輔助在它之後，兩邊對不上。
+> 4. **測試場的「外傾 10° 彎道」改為「外側較高、往內傾斜 10° 的超高彎道」**，避免被做成往外傾斜的反向坡。
+> 5. 修正 v1.4 第 1 點的說明：用模擬確認自由落下時每一步的壓縮量變化其實不大，真正會產生假尖峰的是壓縮量不連續的情況。Phase 2 新增的落地測試在預設參數下做得到：從 0.5 m 落下，著地第一步約 1.8 倍靜態負載，之後不會再離地。
 
 ## 使用方式
 
@@ -134,7 +141,7 @@ tests/
 - 滾動阻力係數 0.012
 - 轉向：低速最大輪角 33°、Ackermann 0.6
   - 輸入平滑（只在 Steering.ts 做一次，依裝置）：鍵盤轉入 0→1 需 0.18 s（低速）~ 0.35 s（高速）、回正 0.12 s；手把轉入 0.08 s、回正 0.06 s；方向盤不平滑
-- 輔助：ABS kp 1.5 / ki 20；TCS kp 0.25 / ki 5；STM kp 2500 / ki 4000 / limitRatio 1.0；轉向輔助 strength 0.7、反打 gain 0.6、門檻 9°（= peakSlipAngle × 1.1）
+- 輔助：ABS kp 1.5 / ki 20；TCS kp 0.25 / ki 5；STM kp 2500 / ki 4000 / limitRatio 1.0（拉手煞車時暫停）；手煞車不經過 ABS；轉向輔助 strength 0.7、反打 gain 0.6、門檻 9°（= peakSlipAngle × 1.1）
 
 ## 手感驗收目標（使用 "forza_normal" 輔助預設）
 - 0→100 km/h：6.0–7.5 s；極速 230–260 km/h
@@ -175,7 +182,7 @@ tests/
    - 連續髮夾彎 4 個（內半徑 12 m、帶 8% 坡度，模擬台14甲）
    - 小顛簸路段（正弦起伏，振幅 5 cm、波長 3 m）
    - 低摩擦區（collider userData 帶 surfaceGrip = 0.7，代表濕地）
-   - 外傾 10° 的彎道一個
+   - 超高彎道一個：外側較高、路面往彎道內側傾斜 10°（不是往外傾斜的反向坡）
    每個 collider 的 userData 帶 { surfaceGrip, surfaceType }。
 5. render/VehicleView.ts：方塊車身 + 4 個圓柱輪子（之後會換 GLB，所以要保留 setModel 介面）。
 6. 此階段車輛先只做剛體，不做懸吊。按 R 可重置到起點。
@@ -205,7 +212,7 @@ Debug：用 Tweakpane 即時調整 k、c、arb；畫面上以 4 條長條顯示�
 - 靜止平衡：車放在平地 3 秒後，4 輪 Fz 總和 = m·g ±1%，前後比例 ≈ 52/48 ±2%。
 - 從 0.3 m 高度落下：不得穿地，1.5 秒內停止震盪（車身垂直速度 < 0.02 m/s）。
 - 120 Hz 與 240 Hz 的穩態壓縮量差異 < 2%。
-- 從 0.5 m 高度平落：著地那一步單輪懸吊力 < 4 × 靜態負載，不得彈離地面。
+- 從 0.5 m 高度平落：著地那一步單輪懸吊力 < 4 × 靜態負載，不得彈離地面（預設參數模擬約 1.8 倍；之後壓到 bump stop 時約 5 倍屬正常）。
 ````
 
 ## Phase 3：輪胎模型（手感核心，要精確實作）
@@ -319,12 +326,14 @@ Debug：
      容量：lsd = preload + lockCoef × |T_in|；locked = ∞
    - 不可寫成「固定扭力 × sign(ω_l − ω_r)」（轉速接近時會每步翻轉而抖動），也不可用顯式強阻尼耦合（會發散）
    - AWD：中央差速器依前後分配比例分配扭力（中央也可用同樣的 min(容量, T_eq) 做法），再交給前後軸
-5. Brakes.ts：brake 輸入 → 每輪扭力（依 preset 的前後最大值，前 2200 / 後 900）；手煞車只作用在後輪
+5. Brakes.ts：brake 輸入 → 每輪扭力（依 preset 的前後最大值，前 2200 / 後 900）
+   - 手煞車另外計算，只作用在後輪（2500 N·m），並且不經過 ABS（Phase 5），最後才與一般煞車扭力相加
 6. Aero.ts：F_drag = 0.5ρ·CdA·v²（方向與速度相反，施加在 CoM）；
    下壓力 0.5ρ·ClA·v²，依前後比例施加在前後軸中點；滾動阻力 = Crr × Fz × r（作為 Wheel 的 resistTorque）
 7. Steering.ts（只處理機構，輔助在 Phase 5）
    - 輸入 steer → 方向盤角，再乘上隨速度變化的上限：maxAngle(v) = max(6°, 33° / (1 + v / 15))，v 為 m/s
-   - Ackermann：內側輪角較大，依 Ackermann 係數混合
+   - 輸出單一「中心輪角」δ（這就是 STM 用的 δ_driver）；Ackermann 不在這裡做，
+     而是在 Phase 5 轉向輔助修正之後，最後一步才依 Ackermann 係數分成左右輪角（內側輪角較大）
    - 輸入平滑只在這裡做一次，依裝置使用 AGENTS.md 的數值（鍵盤、手把、方向盤各一組）；Phase 6 的輸入層只負責死區與曲線
 
 HUD：速度 km/h、rpm 指針、檔位、油門/煞車條、手煞車指示。
@@ -349,7 +358,7 @@ HUD：速度 km/h、rpm 指針、檔位、油門/煞車條、手煞車指示。
 - sim：全部關閉、手動排檔
 
 處理順序（每個物理步長）：
-Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力倍率）→ STM（每輪附加煞車 + 油門倍率）→ ABS（每輪煞車壓力倍率）→ Wheel/Tire
+Steering（機構，中心輪角）→ steeringAssist → Ackermann 分成左右輪角 → TCS（引擎扭力倍率）→ STM（每輪附加煞車 + 油門倍率）→ ABS（每輪煞車壓力倍率）→ 加上手煞車扭力（不經 ABS）→ Wheel/Tire
 
 1. steeringAssist.ts（最重要）
    - 最佳滑動角窗口：β_f = atan2(前軸側向速度, max(前軸前進速度, 1))，α_t = peakSlipAngle × 1.05
@@ -368,13 +377,14 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
    - 過度轉向（r 與 r_target 異號，或 |r| − |r_target| > 0.08 rad/s）：PI 控制煞「前外側輪」（上限 800 N·m），降低油門
    - 轉向不足（|r_target| − |r| > 0.08）：PI 控制輕煞「後內側輪」（上限 400 N·m），稍降油門
    - 輸出以一階低通 τ = 0.05 s 平滑；速度 < 15 km/h 時停用
+   - 手煞車 > 0.1 時暫停（suspendWithHandbrake），放開後經同一個低通平滑恢復；否則手煞車甩尾會被立刻拉回
 3. tcs.ts
    - 驅動輪最大 κ > peakSlipRatio × 1.15 → 啟動；以目標 κ = peakSlipRatio 的 PI 控制器（kp 0.25、ki 5）降低引擎扭力倍率
    - 降扭立即生效，恢復速率上限 3 /s；手煞車拉著時停用（讓玩家可以甩尾）
    - 倒車時驅動方向相反，傳入前要把 κ 取反
    - 注意：kp 太大（例如 2）會在全砍與恢復之間循環，加速反而比沒開 TCS 還差
 4. abs.ts
-   - 輸入的 brakeCmd 是該輪的總煞車需求（玩家煞車 + STM 附加煞車）
+   - 輸入的 brakeCmd 是該輪的總煞車需求（玩家煞車 + STM 附加煞車），不包含手煞車；手煞車扭力在 ABS 之後才加上
    - 每輪 κ < −peakSlipRatio × 1.15 → 啟動；以目標 κ = −peakSlipRatio 的 PI 控制器（kp 1.5、ki 20）調變煞車壓力
    - 不做 bang-bang 脈衝；另外輸出 15 Hz、±5% 的 hudPulse，只用於 HUD 與手把震動
    - 速度 < 5 km/h 時停用，讓車可以完全停下（之後由 Hold 接手）
@@ -483,7 +493,7 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 這份程式碼是 Phase 3、Phase 4 差速器與 Phase 5 的「標準答案」：
 
 - **純邏輯**：不依賴 three.js 或 Rapier，可以直接在 Node 上測試，之後也能拿到多人伺服器上跑。
-- 已通過 `tsc --strict`（含 `noUncheckedIndexedAccess`）與 **21 項 Vitest 單元測試**。
+- 已通過 `tsc --strict`（含 `noUncheckedIndexedAccess`）與 **22 項 Vitest 單元測試**。
 - 執行方式：`npm install`、`npm run typecheck`、`npm test`。
 - 還沒有接上完整車輛（懸吊、動力系統、Rapier），那是 Codex 在 Phase 2 和 Phase 4 的工作。
 
@@ -516,6 +526,7 @@ Steering（機構）→ steeringAssist → 計算輪角 → TCS（引擎扭力�
 | 停車側向晃動，有低速橫向阻尼 | **≈ 0** |
 | 左右抓地不同（0.3 / 1.0）、1600 N·m，第 2–3 秒最大左右轉速差 | open 150 rad/s、**LSD 0.2 rad/s（無抖動）**、locked 0.18 rad/s |
 | STM：極限定圓 1.0 g、yaw 多 10% | limitRatio 1.0 不觸發；0.85 會誤觸 |
+| STM：拉手煞車時過度轉向 | 不介入；放開後 0.2 秒內恢復介入 |
 | 隨機輸入 10,000 步 | 無 NaN |
 
 ## 整車縱向估算

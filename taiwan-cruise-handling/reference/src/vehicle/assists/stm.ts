@@ -24,6 +24,8 @@ export interface StmParams {
   throttleCutGain: number; // 例 2.0
   minThrottleScale: number; // 例 0.2
   filterTau: number; // s，例 0.05
+  /** 拉手煞車時暫停，否則手煞車甩尾會被 STM 立刻拉回；放開後經 filterTau 平滑恢復 */
+  suspendWithHandbrake: boolean;
 }
 
 export interface StmState {
@@ -51,6 +53,7 @@ export interface StmInput {
    */
   driverSteerAngle: number;
   yawRateRight: number;
+  handbrake: number; // 0..1
   dt: number;
 }
 
@@ -74,7 +77,8 @@ export function updateStm(p: StmParams, st: StmState, inp: StmInput): StmOutput 
   let rT = 0;
   st.mode = 'none';
 
-  if (p.enabled && v >= p.minSpeed) {
+  const suspended = p.suspendWithHandbrake && inp.handbrake > 0.1;
+  if (p.enabled && !suspended && v >= p.minSpeed) {
     rT = yawRateTarget(p, v, inp.driverSteerAngle);
     const r = inp.yawRateRight;
     const opposite = sign(r) !== 0 && sign(rT) !== 0 && sign(r) !== sign(rT);
